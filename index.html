@@ -1,0 +1,117 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Device & Network info — simple</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,Arial;margin:20px;background:#f7f7f7;color:#111}
+    pre{background:#fff;padding:12px;border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:auto}
+    h1{font-size:18px;margin-bottom:6px}
+    small{color:#555}
+  </style>
+</head>
+<body>
+  <h1>Информация о системе <small>(быстро)</small></h1>
+  <pre id="out">Загрузка…</pre>
+
+  <script>
+  (async function(){
+    const out = id=>document.getElementById('out').textContent = id;
+    const info = {};
+
+    // 1) Браузерная информация
+    info.userAgent = navigator.userAgent || 'N/A';
+    info.windowLocation = {
+      href: location.href,
+      origin: location.origin,
+      pathname: location.pathname
+    };
+    info.windowInner = {
+      width: window.innerWidth,
+      height: window.innerHeight,
+      aspect: (window.innerWidth / window.innerHeight).toFixed(2)
+    };
+    info.screen = {
+      width: screen.width,
+      height: screen.height,
+      aspect: (screen.width / screen.height).toFixed(2),
+      colorDepth: screen.colorDepth,
+      orientation: (screen.orientation && screen.orientation.type) || (screen.msOrientation || 'N/A'),
+      orientationAngle: (screen.orientation && screen.orientation.angle) || (screen.msOrientationAngle || 0)
+    };
+    // DPI calculation: создаём элемент шириной 1in и меряем
+    const div = document.createElement('div');
+    div.style.width = '1in'; div.style.height = '1in'; div.style.position='absolute'; div.style.left='-100%';
+    document.body.appendChild(div);
+    const pxPerInch = div.offsetWidth * (window.devicePixelRatio || 1);
+    document.body.removeChild(div);
+    info.dpi = Math.round(pxPerInch);
+
+    info.os = (function(ua){
+      ua = ua.toLowerCase();
+      if(/windows/.test(ua)) return 'Windows';
+      if(/mac os x/.test(ua) && !/iphone|ipad/.test(ua)) return 'macOS';
+      if(/android/.test(ua)) return 'Android';
+      if(/iphone|ipad|ipod/.test(ua)) return 'iOS';
+      if(/linux/.test(ua)) return 'Linux';
+      return 'Unknown';
+    })(navigator.userAgent);
+
+    info.cpuThreads = navigator.hardwareConcurrency || 'N/A';
+    info.memoryGB = navigator.deviceMemory ? (navigator.deviceMemory + ' GB') : 'N/A';
+    info.languages = navigator.languages || [navigator.language] || [];
+    info.currentLanguage = navigator.language || 'N/A';
+
+    // 2) IP / ISP / Location через публичный API (ipapi.co)
+    // NOTE: публичные API имеют лимиты; если не сработает — появится N/A
+    try {
+      const r = await fetch('https://ipapi.co/json/');
+      if(r.ok){
+        const j = await r.json();
+        info.ip = j.ip || 'N/A';
+        info.city = j.city || 'N/A';
+        info.country = j.country_name || j.country || 'N/A';
+        info.countryCode = j.country_code || 'N/A';
+        info.isp = j.org || j.orgname || j.org || 'N/A'; // ipapi иногда отдаёт org
+        info.hostname = j.hostname || 'N/A';
+        info.latitude = j.latitude || j.lat || (j.loc ? j.loc.split(',')[0] : 'N/A');
+        info.longitude = j.longitude || j.lon || (j.loc ? j.loc.split(',')[1] : 'N/A');
+      } else {
+        info.ip = 'N/A (api failed)';
+      }
+    } catch(e){
+      info.ip = 'N/A (fetch failed)';
+    }
+
+    // Финальная отрисовка — аккуратно отформатируем
+    const nice = {
+      "IP address": info.ip,
+      "Hostname": info.hostname || 'N/A',
+      "ISP / Organization": info.isp || 'N/A',
+      "City": info.city || 'N/A',
+      "Country": info.country || 'N/A',
+      "Country code": info.countryCode || 'N/A',
+      "Latitude / Longitude": (info.latitude && info.longitude) ? `${info.latitude}, ${info.longitude}` : 'N/A',
+      "User agent": info.userAgent,
+      "Window (href)": info.windowLocation.href,
+      "Window width x height (aspect)": `${info.windowInner.width} x ${info.windowInner.height} (≈ ${info.windowInner.aspect})`,
+      "Screen width x height (aspect)": `${info.screen.width} x ${info.screen.height} (≈ ${info.screen.aspect})`,
+      "DPI (approx)": info.dpi,
+      "Color depth": info.screen.colorDepth,
+      "Screen orientation / angle": `${info.screen.orientation} / ${info.screen.orientationAngle}`,
+      "Operating System (guessed)": info.os,
+      "CPU threads (hardwareConcurrency)": info.cpuThreads,
+      "Memory (navigator.deviceMemory)": info.memoryGB,
+      "System languages (navigator.languages)": Array.isArray(info.languages) ? info.languages.join(', ') : info.languages,
+      "Current language": info.currentLanguage
+    };
+
+    // Преобразуем в читабельный текст
+    let outText = '';
+    for(const k of Object.keys(nice)) outText += `${k}: ${nice[k]}\n`;
+    out(outText);
+
+  })();
+  </script>
+</body>
+</html>
